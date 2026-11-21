@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ember Valley — a spot-the-difference game</title>
+<style>
+  :root {
+    --bg: #0f2018;
+    --panel-bg: #14352a;
+    --panel-border: #2c4a3a;
+    --cream: #fff3d6;
+    --ink: #f5ead2;
+    --muted: #9db8a4;
+    --ember: #ff7a29;
+    --ember-deep: #ff6b1a;
+    --amber: #ffb703;
+    --pine: #1e5c46;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); }
+  body { font-family: Arial, Helvetica, sans-serif; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; }
+  #app { max-width: 1280px; width: 100%; margin: 0 auto; padding: 10px 14px 14px; }
+  .hidden { display: none !important; }
+  .dim { opacity: 0.35; pointer-events: none; }
+
+  /* ---- top bar ---- */
+  #topbar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    background: var(--panel-bg); border: 2px solid var(--panel-border); border-radius: 12px;
+    padding: 8px 14px; margin-bottom: 10px; }
+  #topbar .left { min-width: 220px; }
+  #sceneLabel { font-size: clamp(16px, 2vw, 22px); font-weight: bold; color: var(--cream); }
+  #parLabel { font-size: clamp(11px, 1.3vw, 14px); color: var(--muted); }
+  #toFind { flex: 1; text-align: center; font-size: clamp(22px, 3vw, 34px); font-weight: bold; color: var(--amber); white-space: nowrap; }
+  #topbar .right { display: flex; align-items: center; gap: 14px; font-size: clamp(13px, 1.6vw, 17px); font-weight: bold; }
+  #timer { color: var(--cream); min-width: 52px; text-align: right; }
+  #strikes { color: #ff8a80; }
+  #score { color: var(--muted); }
+  .btn { font-family: inherit; font-size: clamp(13px, 1.5vw, 16px); font-weight: bold; cursor: pointer;
+    border: 2px solid var(--ember); background: var(--ember); color: #241300;
+    border-radius: 999px; padding: 8px 16px; }
+  .btn:hover { background: #ff9448; }
+  .btn.ghost { background: transparent; color: var(--amber); border-color: var(--amber); }
+  .btn.ghost:hover { background: rgba(255,183,3,0.15); }
+  .btn:disabled { opacity: 0.4; cursor: default; }
+  .btn.primary { font-size: clamp(16px, 2vw, 20px); padding: 12px 26px; }
+
+  /* ---- panels ---- */
+  #panels { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: start; }
+  .panel-wrap { background: var(--panel-bg); border: 2px solid var(--panel-border); border-radius: 12px; padding: 8px; }
+  .panel-label { text-align: center; font-weight: bold; letter-spacing: 1px; margin-bottom: 6px;
+    font-size: clamp(12px, 1.5vw, 16px); color: var(--cream); text-transform: uppercase; }
+  .panel-label span { color: var(--muted); font-weight: normal; text-transform: none; letter-spacing: 0; }
+  canvas.scene { width: 100%; height: auto; display: block; border-radius: 8px; cursor: crosshair; }
+  #vsBadge { align-self: center; font-weight: bold; font-size: clamp(16px, 2.2vw, 26px); color: var(--ember);
+    background: var(--panel-bg); border: 2px solid var(--panel-border); border-radius: 50%;
+    width: 52px; height: 52px; display: flex; align-items: center; justify-content: center; }
+
+  /* ---- found strip ---- */
+  #foundStrip { display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 10px;
+    font-size: clamp(14px, 1.7vw, 18px); font-weight: bold; color: var(--cream); }
+  #foundDots { display: flex; gap: 8px; }
+  #foundDots .dot { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--muted); background: transparent; }
+  #foundDots .dot.found { background: var(--ember-deep); border-color: var(--ember-deep); }
+  #sceneDots { display: flex; gap: 6px; }
+  #sceneDots .sdot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--muted); background: transparent; }
+  #sceneDots .sdot.done { background: var(--amber); border-color: var(--amber); }
+  #sceneDots .sdot.current { border-color: var(--amber); box-shadow: 0 0 0 2px rgba(255,183,3,0.35); }
+  .strip-sep { color: var(--muted); }
+
+  /* ---- overlays ---- */
+  .overlay { position: fixed; inset: 0; background: rgba(8, 18, 13, 0.80); display: flex;
+    align-items: center; justify-content: center; z-index: 10; padding: 16px; overflow-y: auto; }
+  .card { background: var(--panel-bg); border: 3px solid var(--ember); border-radius: 16px;
+    max-width: 860px; width: 100%; padding: 26px 30px; text-align: center; }
+  .card h1 { margin: 0 0 4px; font-size: clamp(38px, 6vw, 64px); letter-spacing: 2px; color: var(--cream); }
+  .card h1 .ember { color: var(--ember); }
+  .card h2 { margin: 0 0 14px; font-size: clamp(20px, 3vw, 28px); color: var(--cream); }
+  .subtitle { color: var(--amber); font-size: clamp(15px, 2vw, 19px); margin: 0 0 16px; font-weight: bold; }
+  .rules { color: var(--ink); font-size: clamp(14px, 1.8vw, 17px); line-height: 1.55; margin: 0 auto 16px; max-width: 640px; }
+  .rules b { color: var(--amber); }
+  .preview { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; flex-wrap: wrap; }
+  .preview figure { margin: 0; }
+  .preview canvas { width: 300px; max-width: 44vw; height: auto; border-radius: 8px; border: 2px solid var(--panel-border); display: block; }
+  .preview figcaption { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .scene-pick { display: flex; gap: 10px; justify-content: center; margin: 14px 0 6px; flex-wrap: wrap; }
+  .shortcuts { color: var(--muted); font-size: clamp(12px, 1.5vw, 14px); margin-top: 14px; }
+  .big-stars { font-size: clamp(30px, 4.5vw, 44px); color: var(--amber); margin: 6px 0; letter-spacing: 6px; }
+  #modalBody p { font-size: clamp(14px, 1.8vw, 17px); line-height: 1.5; margin: 8px 0; }
+  #modalBody .muted { color: var(--muted); }
+  #modalBtns { display: flex; gap: 12px; justify-content: center; margin-top: 18px; flex-wrap: wrap; }
+  #titleBest { color: var(--muted); font-size: clamp(13px, 1.6vw, 15px); margin-top: 10px; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="left">
+      <div id="sceneLabel">Valley at Dawn</div>
+      <div id="parLabel">Scene 1 of 3 · Par 1:30</div>
+    </div>
+    <div id="toFind">7 to find</div>
+    <div class="right">
+      <span id="timer">0:00</span>
+      <span id="strikes">Strikes: 0</span>
+      <span id="score">Score: 0</span>
+      <button class="btn ghost" id="hintBtn" type="button">Hint (3)</button>
+      <button class="btn ghost" id="pauseBtn" type="button">Pause</button>
+      <button class="btn ghost" id="muteBtn" type="button">Sound: on</button>
+    </div>
+  </div>
+
+  <div id="panels">
+    <div class="panel-wrap">
+      <div class="panel-label">Left — <span>original</span></div>
+      <canvas id="panelLeft" class="scene" width="1000" height="600" aria-label="Original picture"></canvas>
+    </div>
+    <div id="vsBadge">VS</div>
+    <div class="panel-wrap">
+      <div class="panel-label">Right — <span>spot the changes</span></div>
+      <canvas id="panelRight" class="scene" width="1000" height="600" aria-label="Changed picture"></canvas>
+    </div>
+  </div>
+
+  <div id="foundStrip">
+    <span>Found:</span>
+    <span id="foundDots">
+      <span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span><span class="dot"></span>
+    </span>
+    <span class="strip-sep">·</span>
+    <span>Scenes:</span>
+    <span id="sceneDots">
+      <span class="sdot"></span><span class="sdot"></span><span class="sdot"></span>
+    </span>
+  </div>
+</div>
+
+<div id="titleScreen" class="overlay">
+  <div class="card">
+    <h1>EMBER <span class="ember">VALLEY</span></h1>
+    <p class="subtitle">a spot-the-difference game · three seasons, one valley</p>
+    <div class="preview">
+      <figure><canvas id="titlePrevL" width="300" height="180"></canvas><figcaption>Original</figcaption></figure>
+      <figure><canvas id="titlePrevR" width="300" height="180"></canvas><figcaption>Spot the changes</figcaption></figure>
+    </div>
+    <p class="rules">Two pictures, side by side — <b>7 things differ</b> in every scene.
+      Tap a difference on either side to ring it on both. A wrong tap costs a star,
+      and <b>three strikes</b> end the scene. You get 3 hints per scene — beat the par time
+      to earn 3 stars. Three scenes await: dawn village, autumn camp, snowy lantern night.</p>
+    <button class="btn primary" id="startBtn" type="button">Start the hunt</button>
+    <div class="scene-pick">
+      <button class="btn ghost" data-scene="0" type="button">1 · Valley at Dawn</button>
+      <button class="btn ghost" data-scene="1" type="button">2 · Autumn Camp</button>
+      <button class="btn ghost" data-scene="2" type="button">3 · Snow Lantern Night</button>
+    </div>
+    <div id="titleBest">No best score yet — be the first to clear the valley.</div>
+    <div class="shortcuts">H for a hint · P / Esc pauses · M mutes · N next scene · Enter starts</div>
+  </div>
+</div>
+
+<div id="modal" class="overlay hidden">
+  <div class="card" id="modalCard">
+    <h2 id="modalTitle">Scene complete!</h2>
+    <div id="modalBody"></div>
+    <div id="modalBtns"></div>
+  </div>
+</div>
+
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
